@@ -6,11 +6,12 @@ import { HostAppService, Platform, isWindowsBuild, WIN_BUILD_WSL_EXE_DISTRO_FLAG
 
 import { ShellProvider, Shell } from 'tabby-local'
 
-/* eslint-disable block-scoped-var */
-
+let windowsNativeRegistry: any | null = null
 try {
-    var wnr = require('windows-native-registry') // eslint-disable-line @typescript-eslint/no-var-requires, no-var
-} catch { }
+    windowsNativeRegistry = require('windows-native-registry') // eslint-disable-line
+} catch (error) {
+    console.warn('windows-native-registry is unavailable, WSL auto-detection will be limited', error)
+}
 
 // WSL Distribution List
 // https://docs.microsoft.com/en-us/windows/wsl/install-win10#install-your-linux-distribution-of-choice
@@ -48,16 +49,19 @@ export class WSLShellProvider extends ShellProvider {
         if (this.hostApp.platform !== Platform.Windows) {
             return []
         }
+        if (!windowsNativeRegistry) {
+            return []
+        }
 
         const bashPath = `${process.env.windir}\\system32\\bash.exe`
         const wslPath = `${process.env.windir}\\system32\\wsl.exe`
 
         const lxssPath = 'Software\\Microsoft\\Windows\\CurrentVersion\\Lxss'
-        const lxss = wnr.getRegistryKey(wnr.HK.CU, lxssPath)
+        const lxss = windowsNativeRegistry.getRegistryKey(windowsNativeRegistry.HK.CU, lxssPath)
         const shells: Shell[] = []
 
         if (lxss?.DefaultDistribution) {
-            const defaultDistKey = wnr.getRegistryKey(wnr.HK.CU, lxssPath + '\\' + String(lxss.DefaultDistribution.value))
+            const defaultDistKey = windowsNativeRegistry.getRegistryKey(windowsNativeRegistry.HK.CU, lxssPath + '\\' + String(lxss.DefaultDistribution.value))
             if (defaultDistKey?.DistributionName) {
                 const shell: Shell = {
                     id: 'wsl',
@@ -90,8 +94,8 @@ export class WSLShellProvider extends ShellProvider {
                 return []
             }
         }
-        for (const child of wnr.listRegistrySubkeys(wnr.HK.CU, lxssPath) as string[]) {
-            const childKey = wnr.getRegistryKey(wnr.HK.CU, lxssPath + '\\' + child)
+        for (const child of windowsNativeRegistry.listRegistrySubkeys(windowsNativeRegistry.HK.CU, lxssPath) as string[]) {
+            const childKey = windowsNativeRegistry.getRegistryKey(windowsNativeRegistry.HK.CU, lxssPath + '\\' + child)
             if (!childKey.DistributionName || !childKey.BasePath) {
                 continue
             }

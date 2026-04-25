@@ -11,11 +11,23 @@ import { Window, WindowOptions } from './window'
 import { pluginManager } from './pluginManager'
 import { PTYManager } from './pty'
 
-/* eslint-disable block-scoped-var */
+let windowsNativeRegistry: any | null = null
 
-try {
-    var wnr = require('windows-native-registry') // eslint-disable-line @typescript-eslint/no-var-requires, no-var
-} catch (_) { }
+function getWindowsNativeRegistry (): any | null {
+    if (windowsNativeRegistry !== null) {
+        return windowsNativeRegistry
+    }
+
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        windowsNativeRegistry = require('windows-native-registry')
+    } catch (error) {
+        console.warn('windows-native-registry is unavailable, Windows registry integration will be limited', error)
+        windowsNativeRegistry = false as any
+    }
+
+    return windowsNativeRegistry || null
+}
 
 export class Application {
     private tray?: Tray
@@ -236,6 +248,10 @@ export class Application {
 
     private useBuiltinGraphics (): void {
         if (process.platform === 'win32') {
+            const wnr = getWindowsNativeRegistry()
+            if (!wnr) {
+                return
+            }
             const keyPath = 'SOFTWARE\\Microsoft\\DirectX\\UserGpuPreferences'
             const valueName = app.getPath('exe')
             if (!wnr.getRegistryValue(wnr.HK.CU, keyPath, valueName)) {

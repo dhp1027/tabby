@@ -4,11 +4,12 @@ import { HostAppService, Platform } from 'tabby-core'
 
 import { ShellProvider, Shell } from 'tabby-local'
 
-/* eslint-disable block-scoped-var */
-
+let windowsNativeRegistry: any | null = null
 try {
-    var wnr = require('windows-native-registry') // eslint-disable-line @typescript-eslint/no-var-requires, no-var
-} catch { }
+    windowsNativeRegistry = require('windows-native-registry') // eslint-disable-line
+} catch (error) {
+    console.warn('windows-native-registry is unavailable, Cygwin auto-detection will be limited', error)
+}
 
 /** @hidden */
 @Injectable()
@@ -23,8 +24,11 @@ export class Cygwin32ShellProvider extends ShellProvider {
         if (this.hostApp.platform !== Platform.Windows) {
             return []
         }
+        if (!windowsNativeRegistry) {
+            return []
+        }
 
-        const cygwinPath = wnr.getRegistryValue(wnr.HK.LM, 'Software\\WOW6432Node\\Cygwin\\setup', 'rootdir')
+        const cygwinPath = windowsNativeRegistry.getRegistryValue(windowsNativeRegistry.HK.LM, 'Software\\WOW6432Node\\Cygwin\\setup', 'rootdir')
 
         if (!cygwinPath) {
             return []

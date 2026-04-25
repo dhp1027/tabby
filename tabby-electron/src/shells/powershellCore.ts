@@ -4,11 +4,12 @@ import { HostAppService, ConfigService, Platform } from 'tabby-core'
 import { Shell } from 'tabby-local'
 import { WindowsBaseShellProvider } from './windowsBase'
 
-/* eslint-disable block-scoped-var */
-
+let windowsNativeRegistry: any | null = null
 try {
-    var wnr = require('windows-native-registry') // eslint-disable-line @typescript-eslint/no-var-requires, no-var
-} catch { }
+    windowsNativeRegistry = require('windows-native-registry') // eslint-disable-line
+} catch (error) {
+    console.warn('windows-native-registry is unavailable, PowerShell Core auto-detection will be limited', error)
+}
 
 /** @hidden */
 @Injectable()
@@ -25,8 +26,11 @@ export class PowerShellCoreShellProvider extends WindowsBaseShellProvider {
         if (this.hostApp.platform !== Platform.Windows) {
             return []
         }
+        if (!windowsNativeRegistry) {
+            return []
+        }
 
-        const pwshPath = wnr.getRegistryValue(wnr.HK.LM, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\pwsh.exe', '')
+        const pwshPath = windowsNativeRegistry.getRegistryValue(windowsNativeRegistry.HK.LM, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\pwsh.exe', '')
 
         if (!pwshPath) {
             return []

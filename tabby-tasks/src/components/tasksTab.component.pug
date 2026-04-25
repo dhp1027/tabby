@@ -1,0 +1,207 @@
+.tasks-shell.d-flex.h-100
+    .tasks-left.border-end
+        .tasks-left-header.d-flex.align-items-center.justify-content-between
+            h4.mb-0 Tasks
+            button.btn.btn-sm.btn-link((click)='createList()') +
+
+        .tasks-nav
+            button.tasks-nav-item(
+                [class.active]='activeTreeMode === "my"',
+                (click)='setTreeMode("my")'
+            )
+                span My Tasks
+                span.badge.text-bg-light {{ taskCountForMode('my') }}
+
+            button.tasks-nav-item(
+                [class.active]='activeTreeMode === "blocked"',
+                (click)='setTreeMode("blocked")'
+            )
+                span Blocked
+                span.badge.text-bg-light {{ taskCountForMode('blocked') }}
+
+            button.tasks-nav-item(
+                [class.active]='activeTreeMode === "completed"',
+                (click)='setTreeMode("completed")'
+            )
+                span Completed
+                span.badge.text-bg-light {{ taskCountForMode('completed') }}
+
+        .tasks-tree
+            .tasks-tree-header.d-flex.align-items-center.justify-content-between
+                span Lists
+                button.btn.btn-sm.btn-outline-secondary((click)='createList()') New List
+
+            .tasks-list-collection
+                button.tasks-epic-item(
+                    *ngFor='let list of lists; trackBy: buttonsTrackBy',
+                    [class.active]='selectedListId === list.id && activeTreeMode === "list"',
+                    (click)='selectList(list.id)'
+                )
+                    span {{ list.title }}
+                    span.badge.text-bg-light {{ taskCountForList(list.id) }}
+
+    .tasks-main.flex-grow-1
+        .tasks-main-header
+            .d-flex.align-items-center.justify-content-between.mb-3
+                .me-3
+                    .d-flex.align-items-center.gap-2.mb-1
+                        ng-container(*ngIf='activeTreeMode === "list" && selectedList; else tasksHeaderTitle')
+                            input.tasks-title-input.form-control(
+                                *ngIf='editingListTitle; else selectedListTitle',
+                                type='text',
+                                [(ngModel)]='editingListTitleDraft',
+                                (blur)='commitEditingSelectedList()',
+                                (keydown.enter)='$event.preventDefault(); commitEditingSelectedList()',
+                                (keydown.escape)='$event.preventDefault(); cancelEditingSelectedList()'
+                            )
+                            ng-template(#selectedListTitle)
+                                button.tasks-title-button(type='button', (click)='startEditingSelectedList()') {{ selectedList.title }}
+                        ng-template(#tasksHeaderTitle)
+                            h4.mb-0 {{ statusLabel(activeTreeMode) }}
+                        .dropdown(*ngIf='activeTreeMode === "list" && selectedList', ngbDropdown)
+                            button.btn.btn-sm.btn-outline-secondary.type-icon(type='button', ngbDropdownToggle)
+                                i.fas.fa-ellipsis-h
+                            .dropdown-menu.dropdown-menu-end(ngbDropdownMenu)
+                                button.dropdown-item(type='button', (click)='renameSelectedList()')
+                                    i.fas.fa-pen.me-2
+                                    span Rename
+                                button.dropdown-item.text-danger(type='button', (click)='deleteSelectedList()')
+                                    i.fas.fa-trash.me-2
+                                    span Delete
+                    .text-muted.small Current Workspace
+                .d-flex.align-items-center.gap-2
+                    .btn-group.me-2
+                        button.btn.btn-sm.btn-outline-secondary([class.active]='view === "list"', (click)='view = "list"') List
+                        button.btn.btn-sm.btn-outline-secondary([class.active]='view === "board"', (click)='view = "board"') Board
+                    button.btn.btn-sm.btn-primary((click)='createTask()', [disabled]='!selectedListId') New Task
+
+            .row.g-2
+                .col-md-5
+                    input.form-control(type='text', placeholder='Search tasks', [(ngModel)]='searchQuery')
+                .col-md-3
+                    select.form-select([(ngModel)]='filter')
+                        option(*ngFor='let option of filters; trackBy: stringTrackBy', [ngValue]='option') {{ statusLabel(option) }}
+
+        .tasks-main-body
+            .tasks-list-view(*ngIf='view === "list"')
+                .tasks-table-header
+                    .col-title Title
+                    .col-status Status
+                    .col-priority Priority
+                    .col-next Next
+                    .col-updated Updated
+                    .col-created Created
+
+                button.tasks-table-row(
+                    *ngFor='let task of visibleTasks; trackBy: buttonsTrackBy',
+                    (click)='openTask(task.id)'
+                )
+                    .col-title
+                        .fw-semibold {{ task.title }}
+                        .small.text-muted.text-truncate {{ task.summary || task.goal || 'No summary yet' }}
+                    .col-status
+                        span.badge.text-bg-secondary {{ statusLabel(task.status) }}
+                    .col-priority {{ priorityLabel(task.priority) }}
+                    .col-next.text-truncate {{ task.nextAction || '-' }}
+                    .col-updated {{ task.updatedAt | date:'short' }}
+                    .col-created {{ task.createdAt | date:'short' }}
+
+                .tasks-empty.text-muted.text-center.mt-4(*ngIf='visibleTasks.length === 0') No tasks in this view
+
+            .tasks-board-view(*ngIf='view === "board"')
+                .tasks-board-column(*ngFor='let column of boardColumns; trackBy: boardColumnTrackBy')
+                    .tasks-board-column-header
+                        span {{ column.title }}
+                        span.badge.text-bg-light {{ column.tasks.length }}
+                    button.tasks-card(
+                        *ngFor='let task of column.tasks; trackBy: buttonsTrackBy',
+                        (click)='openTask(task.id)'
+                    )
+                        .fw-semibold.mb-1 {{ task.title }}
+                        .small.text-muted.mb-2 {{ task.summary || task.goal || 'No summary yet' }}
+                        .small.text-muted Checklist {{ checklistProgress(task) }}
+
+        .tasks-drawer-backdrop(*ngIf='drawerOpen', (click)='closeDrawer()')
+        .tasks-drawer(*ngIf='drawerOpen && selectedTask as task')
+            .tasks-drawer-header.d-flex.align-items-center.justify-content-between
+                h5.mb-0 Task Detail
+                button.btn-close(type='button', (click)='closeDrawer()')
+
+            .tasks-drawer-body
+                .mb-3
+                    label.form-label Title
+                    input.form-control(type='text', [(ngModel)]='task.title')
+
+                .row.g-3.mb-3
+                    .col-6
+                        label.form-label Status
+                        select.form-select([(ngModel)]='task.status')
+                            option(*ngFor='let status of TaskStatuses; trackBy: stringTrackBy', [ngValue]='status') {{ statusLabel(status) }}
+                    .col-6
+                        label.form-label Priority
+                        select.form-select([(ngModel)]='task.priority')
+                            option(*ngFor='let priority of TaskPriorities; trackBy: stringTrackBy', [ngValue]='priority') {{ priorityLabel(priority) }}
+
+                .mb-3
+                    label.form-label Summary
+                    textarea.form-control(rows='2', [(ngModel)]='task.summary')
+
+                .mb-3
+                    label.form-label Goal
+                    textarea.form-control(rows='3', [(ngModel)]='task.goal')
+
+                .mb-3
+                    label.form-label Conversation Summary
+                    textarea.form-control(rows='4', [(ngModel)]='task.conversationSummary')
+
+                .mb-3
+                    .d-flex.align-items-center.justify-content-between.mb-2
+                        label.form-label.mb-0 Acceptance Criteria
+                        button.btn.btn-sm.btn-outline-secondary((click)='addAcceptanceCriteria()') Add
+                    .input-group.mb-2(*ngFor='let item of task.acceptanceCriteria; let i = index')
+                        input.form-control(type='text', [(ngModel)]='task.acceptanceCriteria[i]')
+                        button.btn.btn-outline-danger(type='button', (click)='removeAcceptanceCriteria(i)') Remove
+
+                .mb-3
+                    .d-flex.align-items-center.justify-content-between.mb-2
+                        label.form-label.mb-0 Checklist
+                        button.btn.btn-sm.btn-outline-secondary((click)='addChecklistItem()') Add
+                    .input-group.mb-2(*ngFor='let item of task.checklist; trackBy: buttonsTrackBy')
+                        .input-group-text
+                            input.form-check-input.mt-0(type='checkbox', [(ngModel)]='item.done')
+                        input.form-control(type='text', [(ngModel)]='item.text')
+                        button.btn.btn-outline-danger(type='button', (click)='removeChecklistItem(item.id)') Remove
+
+                .mb-3
+                    label.form-label Notes
+                    textarea.form-control(rows='4', [(ngModel)]='task.notes')
+
+                .mb-3
+                    label.form-label Next Action
+                    textarea.form-control(rows='2', [(ngModel)]='task.nextAction')
+
+                .mb-3
+                    .d-flex.align-items-center.justify-content-between.mb-2
+                        label.form-label.mb-0 Related Files
+                        button.btn.btn-sm.btn-outline-secondary((click)='addRelatedFile()') Add
+                    .input-group.mb-2(*ngFor='let item of task.relatedFiles; let i = index')
+                        input.form-control(type='text', [(ngModel)]='task.relatedFiles[i]')
+                        button.btn.btn-outline-danger(type='button', (click)='removeRelatedFile(i)') Remove
+
+                .mb-3
+                    .d-flex.align-items-center.justify-content-between.mb-2
+                        label.form-label.mb-0 Blockers
+                        button.btn.btn-sm.btn-outline-secondary((click)='addBlocker()') Add
+                    .input-group.mb-2(*ngFor='let item of task.blockers; let i = index')
+                        input.form-control(type='text', [(ngModel)]='task.blockers[i]')
+                        button.btn.btn-outline-danger(type='button', (click)='removeBlocker(i)') Remove
+
+            .tasks-drawer-footer
+                .btn-group
+                    button.btn.btn-primary((click)='saveTask()') Save
+                    button.btn.btn-outline-primary((click)='setTaskStatus("in_progress")') In Progress
+                    button.btn.btn-outline-warning((click)='setTaskStatus("blocked")') Blocked
+                    button.btn.btn-outline-success((click)='setTaskStatus("done")') Done
+                .btn-group
+                    button.btn.btn-outline-secondary((click)='duplicateTask()') Duplicate
+                    button.btn.btn-outline-danger((click)='deleteTask()') Delete

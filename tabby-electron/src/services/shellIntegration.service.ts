@@ -5,11 +5,12 @@ import { Injectable } from '@angular/core'
 import { HostAppService, Platform } from 'tabby-core'
 import { ElectronService } from '../services/electron.service'
 
-/* eslint-disable block-scoped-var */
-
+let windowsNativeRegistry: any | null = null
 try {
-    var wnr = require('windows-native-registry') // eslint-disable-line @typescript-eslint/no-var-requires, no-var
-} catch (_) { }
+    windowsNativeRegistry = require('windows-native-registry') // eslint-disable-line
+} catch (error) {
+    console.warn('windows-native-registry is unavailable, Windows registry integration will be limited', error)
+}
 
 @Injectable({ providedIn: 'root' })
 export class ShellIntegrationService {
@@ -54,7 +55,10 @@ export class ShellIntegrationService {
         if (this.hostApp.platform === Platform.macOS) {
             return fs.exists(path.join(this.automatorWorkflowsDestination, this.automatorWorkflows[0]))
         } else if (this.hostApp.platform === Platform.Windows) {
-            return !!wnr.getRegistryKey(wnr.HK.CU, this.registryKeys[0].path)
+            if (!windowsNativeRegistry) {
+                return false
+            }
+            return !!windowsNativeRegistry.getRegistryKey(windowsNativeRegistry.HK.CU, this.registryKeys[0].path)
         }
         return true
     }
@@ -66,19 +70,22 @@ export class ShellIntegrationService {
                 await exec(`cp -r "${this.automatorWorkflowsLocation}/${wf}" "${this.automatorWorkflowsDestination}"`)
             }
         } else if (this.hostApp.platform === Platform.Windows) {
+            if (!windowsNativeRegistry) {
+                return
+            }
             for (const registryKey of this.registryKeys) {
-                wnr.createRegistryKey(wnr.HK.CU, registryKey.path)
-                wnr.createRegistryKey(wnr.HK.CU, registryKey.path + '\\command')
-                wnr.setRegistryValue(wnr.HK.CU, registryKey.path, '', wnr.REG.SZ, registryKey.value)
-                wnr.setRegistryValue(wnr.HK.CU, registryKey.path, 'Icon', wnr.REG.SZ, exe)
-                wnr.setRegistryValue(wnr.HK.CU, registryKey.path + '\\command', '', wnr.REG.SZ, exe + ' ' + registryKey.command)
+                windowsNativeRegistry.createRegistryKey(windowsNativeRegistry.HK.CU, registryKey.path)
+                windowsNativeRegistry.createRegistryKey(windowsNativeRegistry.HK.CU, registryKey.path + '\\command')
+                windowsNativeRegistry.setRegistryValue(windowsNativeRegistry.HK.CU, registryKey.path, '', windowsNativeRegistry.REG.SZ, registryKey.value)
+                windowsNativeRegistry.setRegistryValue(windowsNativeRegistry.HK.CU, registryKey.path, 'Icon', windowsNativeRegistry.REG.SZ, exe)
+                windowsNativeRegistry.setRegistryValue(windowsNativeRegistry.HK.CU, registryKey.path + '\\command', '', windowsNativeRegistry.REG.SZ, exe + ' ' + registryKey.command)
             }
 
-            if (wnr.getRegistryKey(wnr.HK.CU, 'Software\\Classes\\Directory\\Background\\shell\\Open Tabby here')) {
-                wnr.deleteRegistryKey(wnr.HK.CU, 'Software\\Classes\\Directory\\Background\\shell\\Open Tabby here')
+            if (windowsNativeRegistry.getRegistryKey(windowsNativeRegistry.HK.CU, 'Software\\Classes\\Directory\\Background\\shell\\Open Tabby here')) {
+                windowsNativeRegistry.deleteRegistryKey(windowsNativeRegistry.HK.CU, 'Software\\Classes\\Directory\\Background\\shell\\Open Tabby here')
             }
-            if (wnr.getRegistryKey(wnr.HK.CU, 'Software\\Classes\\*\\shell\\Paste path into Tabby')) {
-                wnr.deleteRegistryKey(wnr.HK.CU, 'Software\\Classes\\*\\shell\\Paste path into Tabby')
+            if (windowsNativeRegistry.getRegistryKey(windowsNativeRegistry.HK.CU, 'Software\\Classes\\*\\shell\\Paste path into Tabby')) {
+                windowsNativeRegistry.deleteRegistryKey(windowsNativeRegistry.HK.CU, 'Software\\Classes\\*\\shell\\Paste path into Tabby')
             }
         }
     }
@@ -89,8 +96,11 @@ export class ShellIntegrationService {
                 await exec(`rm -rf "${this.automatorWorkflowsDestination}/${wf}"`)
             }
         } else if (this.hostApp.platform === Platform.Windows) {
+            if (!windowsNativeRegistry) {
+                return
+            }
             for (const registryKey of this.registryKeys) {
-                wnr.deleteRegistryKey(wnr.HK.CU, registryKey.path)
+                windowsNativeRegistry.deleteRegistryKey(windowsNativeRegistry.HK.CU, registryKey.path)
             }
         }
     }

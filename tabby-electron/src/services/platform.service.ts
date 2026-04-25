@@ -11,16 +11,25 @@ import { ElectronHostWindow } from './hostWindow.service'
 import { ShellIntegrationService } from './shellIntegration.service'
 import { ElectronHostAppService } from './hostApp.service'
 import { configPath } from '../../../app/lib/config'
-const fontManager = require('fontmanager-redux') // eslint-disable-line
 
-/* eslint-disable block-scoped-var */
-
+let fontManager: { getAvailableFonts: (callback: (fonts: any[]) => void) => void } | null = null
 try {
-    // eslint-disable-next-line no-var
-    var windowsProcessTreeNative = require('@tabby-gang/windows-process-tree/build/Release/windows_process_tree.node')
-    // eslint-disable-next-line no-var
-    var wnr = require('windows-native-registry')
+    fontManager = require('fontmanager-redux') // eslint-disable-line
+} catch (error) {
+    console.warn('fontmanager-redux is unavailable, font enumeration will be limited', error)
+}
+
+let windowsProcessTreeNative: any = null
+try {
+    windowsProcessTreeNative = require('@tabby-gang/windows-process-tree/build/Release/windows_process_tree.node') // eslint-disable-line
 } catch { }
+
+let windowsNativeRegistry: any | null = null
+try {
+    windowsNativeRegistry = require('windows-native-registry') // eslint-disable-line
+} catch (error) {
+    console.warn('windows-native-registry is unavailable, Windows registry integration will be limited', error)
+}
 
 @Injectable({ providedIn: 'root' })
 export class ElectronPlatformService extends PlatformService {
@@ -91,7 +100,10 @@ export class ElectronPlatformService extends PlatformService {
     }
 
     getWinSCPPath (): string|null {
-        const key = wnr.getRegistryKey(wnr.HK.CR, 'WinSCP.Url\\DefaultIcon')
+        if (!windowsNativeRegistry) {
+            return null
+        }
+        const key = windowsNativeRegistry.getRegistryKey(windowsNativeRegistry.HK.CR, 'WinSCP.Url\\DefaultIcon')
         if (key?.['']) {
             let detectedPath = key[''].value?.split(',')[0]
             detectedPath = detectedPath?.substring(1, detectedPath.length - 1)
@@ -158,7 +170,11 @@ export class ElectronPlatformService extends PlatformService {
 
     async listFonts (): Promise<string[]> {
         if (this.hostApp.platform === Platform.Windows || this.hostApp.platform === Platform.macOS) {
-            let fonts = await new Promise<any[]>(resolve => fontManager.getAvailableFonts(resolve))
+            const availableFontManager = fontManager
+            if (!availableFontManager) {
+                return []
+            }
+            let fonts = await new Promise<any[]>(resolve => availableFontManager.getAvailableFonts(resolve))
             fonts = fonts.map(x => x.family.trim())
             return fonts
         }
